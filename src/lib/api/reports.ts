@@ -1,4 +1,4 @@
-import { apiGet } from "./api-client";
+import { apiGet } from "../api-client";
 
 export interface OverviewReport {
   hospitals: {

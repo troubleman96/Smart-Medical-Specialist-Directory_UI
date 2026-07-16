@@ -1,4 +1,4 @@
-import { apiPost, apiGet, apiPatch, apiGetPaginated } from "./api-client";
+import { apiPost, apiGet, apiPatch, apiGetPaginated } from "../api-client";
 
 export interface Hospital {
   id: number;

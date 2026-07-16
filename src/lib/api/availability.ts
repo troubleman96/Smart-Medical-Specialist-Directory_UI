@@ -1,4 +1,4 @@
-import { apiPost, apiGet } from "./api-client";
+import { apiPost, apiGet } from "../api-client";
 
 export interface Availability {
   id: number;

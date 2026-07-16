@@ -1,4 +1,4 @@
-import { apiPost, apiGet, apiPatch, apiDelete } from "./api-client";
+import { apiPost, apiGet, apiPatch, apiDelete } from "../api-client";
 
 export interface Specialist {
   id: number;

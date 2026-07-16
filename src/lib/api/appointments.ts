@@ -1,4 +1,4 @@
-import { apiPost, apiGet, apiPatch } from "./api-client";
+import { apiPost, apiGet, apiPatch } from "../api-client";
 
 export interface Appointment {
   id: number;

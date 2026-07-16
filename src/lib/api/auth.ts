@@ -1,4 +1,4 @@
-import { apiPost, apiGet, setTokens, clearTokens } from "./api-client";
+import { apiPost, apiGet, setTokens, clearTokens } from "../api-client";
 
 export interface ApiUser {
   id: number;
