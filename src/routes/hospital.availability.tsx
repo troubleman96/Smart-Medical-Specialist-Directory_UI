@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAuth } from "@/lib/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getHospitalSpecialists, type Specialist } from "@/lib/api/specialists";
+import { listAvailability, setAvailability, type Availability } from "@/lib/api/availability";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -9,11 +9,9 @@ export const Route = createFileRoute("/hospital/availability")({
   component: AvailabilityPage,
 });
 
-type Status = "available" | "busy" | "off";
+type Status = "AVAILABLE" | "BUSY" | "OFF";
 
 function AvailabilityPage() {
-  const { profile } = useAuth();
-  const hid = profile?.hospital_id;
   const qc = useQueryClient();
 
   const dates: string[] = [];
@@ -22,43 +20,45 @@ function AvailabilityPage() {
     dates.push(d.toISOString().slice(0, 10));
   }
 
-  const { data } = useQuery({
-    enabled: !!hid,
-    queryKey: ["specialists-availability", hid],
-    queryFn: async () => {
-      const [{ data: specs }, { data: avs }] = await Promise.all([
-        supabase.from("specialists").select("id, full_name, specialization").eq("hospital_id", hid!).eq("is_active", true).order("full_name"),
-        supabase.from("availability").select("specialist_id, date, status").eq("hospital_id", hid!).gte("date", dates[0]).lte("date", dates[6]),
-      ]);
-      const map = new Map<string, Status>();
-      (avs ?? []).forEach((a) => map.set(`${a.specialist_id}|${a.date}`, a.status as Status));
-      return { specs: specs ?? [], map };
-    },
+  const { data: specs } = useQuery({
+    queryKey: ["specialists"],
+    queryFn: () => getHospitalSpecialists(),
   });
 
+  const { data: avs } = useQuery({
+    queryKey: ["availability", dates[0], dates[6]],
+    queryFn: () => listAvailability({ date_from: dates[0], date_to: dates[6] }),
+  });
+
+  const avMap = new Map<string, Status>();
+  (avs ?? []).forEach((a) => avMap.set(`${a.specialist_id}|${a.date}`, a.status));
+
   const setStatus = useMutation({
-    mutationFn: async ({ sid, date, status }: { sid: string; date: string; status: Status }) => {
-      const { error } = await supabase.from("availability").upsert(
-        { specialist_id: sid, hospital_id: hid!, date, status, updated_by: profile!.id },
-        { onConflict: "specialist_id,date" }
-      );
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["specialists-availability", hid] }),
-    onError: (e) => toast.error(e.message),
+    mutationFn: ({ specialistId, date, status }: { specialistId: number; date: string; status: Status }) =>
+      setAvailability({ specialist_id: specialistId, date, status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["availability"] }),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const markAllToday = async () => {
-    if (!data) return;
+    if (!specs) return;
     const today = dates[0];
-    const rows = data.specs.map((s) => ({ specialist_id: s.id, hospital_id: hid!, date: today, status: "available" as Status, updated_by: profile!.id }));
-    const { error } = await supabase.from("availability").upsert(rows, { onConflict: "specialist_id,date" });
-    if (error) return toast.error(error.message);
-    toast.success("Marked all specialists available today");
-    qc.invalidateQueries({ queryKey: ["specialists-availability", hid] });
+    try {
+      await Promise.all(
+        specs.filter((s) => s.is_active).map((s) =>
+          setAvailability({ specialist_id: s.id, date: today, status: "AVAILABLE" })
+        )
+      );
+      toast.success("Marked all specialists available today");
+      qc.invalidateQueries({ queryKey: ["availability"] });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
   };
 
-  const cycle: Record<Status, Status> = { off: "available", available: "busy", busy: "off" };
+  const cycle: Record<Status, Status> = { OFF: "AVAILABLE", AVAILABLE: "BUSY", BUSY: "OFF" };
+
+  const activeSpecs = (specs ?? []).filter((s) => s.is_active);
 
   return (
     <div>
@@ -66,8 +66,8 @@ function AvailabilityPage() {
         <p className="text-sm text-muted-foreground">Tap any cell to cycle status. Green → Amber → Grey.</p>
         <Button variant="secondary" onClick={markAllToday}>Mark all available today</Button>
       </div>
-      {data && data.specs.length === 0 && <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">Add specialists first.</div>}
-      {data && data.specs.length > 0 && (
+      {activeSpecs.length === 0 && <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">Add specialists first.</div>}
+      {activeSpecs.length > 0 && (
         <div className="rounded-2xl border border-border overflow-x-auto bg-card">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
@@ -80,22 +80,22 @@ function AvailabilityPage() {
               </tr>
             </thead>
             <tbody>
-              {data.specs.map((s) => (
+              {activeSpecs.map((s) => (
                 <tr key={s.id} className="border-t border-border">
                   <td className="p-3 sticky left-0 bg-card">
                     <div className="font-medium">{s.full_name}</div>
                     <div className="text-xs text-muted-foreground">{s.specialization}</div>
                   </td>
                   {dates.map((d) => {
-                    const st = (data.map.get(`${s.id}|${d}`) ?? "off") as Status;
-                    const bg = st === "available" ? "bg-status-available" : st === "busy" ? "bg-status-busy" : "bg-status-off";
+                    const st = (avMap.get(`${s.id}|${d}`) ?? "OFF") as Status;
+                    const bg = st === "AVAILABLE" ? "bg-status-available" : st === "BUSY" ? "bg-status-busy" : "bg-status-off";
                     return (
                       <td key={d} className="p-2 text-center">
                         <button
-                          onClick={() => setStatus.mutate({ sid: s.id, date: d, status: cycle[st] })}
+                          onClick={() => setStatus.mutate({ specialistId: s.id, date: d, status: cycle[st] })}
                           className={`h-8 w-16 rounded-md ${bg} text-white text-[10px] font-bold uppercase tracking-wider hover:opacity-80`}
                         >
-                          {st}
+                          {st.toLowerCase()}
                         </button>
                       </td>
                     );

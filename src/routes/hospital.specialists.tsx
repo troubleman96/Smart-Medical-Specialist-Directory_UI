@@ -1,8 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getHospitalSpecialists,
+  createSpecialist,
+  updateSpecialist,
+  deleteSpecialist,
+  type Specialist,
+} from "@/lib/api/specialists";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,32 +19,20 @@ export const Route = createFileRoute("/hospital/specialists")({
   component: SpecialistsPage,
 });
 
-type Specialist = { id: string; full_name: string; specialization: string; license_no: string | null; photo_url: string | null; is_active: boolean };
-
 function SpecialistsPage() {
-  const { profile } = useAuth();
-  const hid = profile?.hospital_id;
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Specialist | null>(null);
 
   const { data, isLoading } = useQuery({
-    enabled: !!hid,
-    queryKey: ["specialists", hid],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("specialists").select("*").eq("hospital_id", hid!).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Specialist[];
-    },
+    queryKey: ["specialists"],
+    queryFn: () => getHospitalSpecialists(),
   });
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("specialists").update({ is_active: false }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("Deactivated"); qc.invalidateQueries({ queryKey: ["specialists", hid] }); },
-    onError: (e) => toast.error(e.message),
+    mutationFn: (id: number) => deleteSpecialist(id),
+    onSuccess: () => { toast.success("Deactivated"); qc.invalidateQueries({ queryKey: ["specialists"] }); },
+    onError: (e: any) => toast.error(e.message),
   });
 
   return (
@@ -52,7 +45,7 @@ function SpecialistsPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} specialist</DialogTitle></DialogHeader>
-            <SpecialistForm existing={editing} onDone={() => { setOpen(false); setEditing(null); qc.invalidateQueries({ queryKey: ["specialists", hid] }); }} />
+            <SpecialistForm existing={editing} onDone={() => { setOpen(false); setEditing(null); qc.invalidateQueries({ queryKey: ["specialists"] }); }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -109,8 +102,6 @@ function SpecialistsPage() {
 }
 
 function SpecialistForm({ existing, onDone }: { existing: Specialist | null; onDone: () => void }) {
-  const { profile } = useAuth();
-  const hid = profile?.hospital_id!;
   const [name, setName] = useState(existing?.full_name ?? "");
   const [spec, setSpec] = useState(existing?.specialization ?? "");
   const [license, setLicense] = useState(existing?.license_no ?? "");
@@ -119,25 +110,36 @@ function SpecialistForm({ existing, onDone }: { existing: Specialist | null; onD
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    if (existing) {
-      const { error } = await supabase.from("specialists").update({ full_name: name, specialization: spec, license_no: license || null, is_active: true }).eq("id", existing.id);
+    try {
+      if (existing) {
+        await updateSpecialist(existing.id, {
+          full_name: name,
+          specialization: spec,
+          license_no: license,
+          is_active: true,
+        });
+        toast.success("Updated");
+      } else {
+        await createSpecialist({
+          full_name: name,
+          specialization: spec,
+          license_no: license,
+        });
+        toast.success("Specialist added");
+      }
+      onDone();
+    } catch (err: any) {
+      toast.error(err.message || "Failed");
+    } finally {
       setBusy(false);
-      if (error) return toast.error(error.message);
-      toast.success("Updated");
-    } else {
-      const { error } = await supabase.from("specialists").insert({ hospital_id: hid, full_name: name, specialization: spec, license_no: license || null });
-      setBusy(false);
-      if (error) return toast.error(error.message);
-      toast.success("Specialist added");
     }
-    onDone();
   };
 
   return (
     <form onSubmit={submit} className="space-y-4">
       <div><Label>Full name</Label><Input required value={name} onChange={(e) => setName(e.target.value)} /></div>
       <div><Label>Specialization</Label><Input required value={spec} onChange={(e) => setSpec(e.target.value)} placeholder="Cardiology" /></div>
-      <div><Label>License #</Label><Input value={license} onChange={(e) => setLicense(e.target.value)} /></div>
+      <div><Label>License #</Label><Input required value={license} onChange={(e) => setLicense(e.target.value)} /></div>
       <Button type="submit" disabled={busy} className="w-full">{busy ? "Saving..." : "Save"}</Button>
     </form>
   );
