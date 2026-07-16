@@ -48,7 +48,7 @@ function HospitalAppointments() {
         const msg = status === "confirmed"
           ? `Your appointment ${appt.reference} with Dr. ${appt.specialist?.full_name} is confirmed for ${appt.scheduled_at ? new Date(appt.scheduled_at).toLocaleString() : "the scheduled time"}.`
           : `Your appointment ${appt.reference} has been cancelled.`;
-        await supabase.rpc("log_sms", { _appointment_id: id, _hospital_id: hid, _phone: phone, _message: msg });
+        await supabase.rpc("log_sms", { _appointment_id: id, _hospital_id: hid!, _phone: phone, _message: msg });
       }
     },
     onSuccess: (_r, vars) => { toast.success(`Appointment ${vars.status}`); qc.invalidateQueries({ queryKey: ["h-appointments", hid] }); },
