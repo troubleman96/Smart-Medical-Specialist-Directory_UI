@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getHospitalSpecialists } from "@/lib/api/specialists";
+import { getHospitalAppointments } from "@/lib/api/appointments";
 import { Users, Calendar, Activity } from "lucide-react";
 
 export const Route = createFileRoute("/hospital/")({
@@ -9,28 +9,24 @@ export const Route = createFileRoute("/hospital/")({
 });
 
 function Overview() {
-  const { profile } = useAuth();
-  const hid = profile?.hospital_id;
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data } = useQuery({
-    enabled: !!hid,
-    queryKey: ["hospital-overview", hid],
-    queryFn: async () => {
-      const [sp, av, ap] = await Promise.all([
-        supabase.from("specialists").select("id", { count: "exact", head: true }).eq("hospital_id", hid!).eq("is_active", true),
-        supabase.from("availability").select("id", { count: "exact", head: true }).eq("hospital_id", hid!).eq("date", today).eq("status", "available"),
-        supabase.from("appointments").select("id", { count: "exact", head: true }).eq("hospital_id", hid!).eq("status", "requested"),
-      ]);
-      return { specialists: sp.count ?? 0, availableToday: av.count ?? 0, pending: ap.count ?? 0 };
-    },
+  const { data: specialists } = useQuery({
+    queryKey: ["specialists"],
+    queryFn: () => getHospitalSpecialists(),
   });
+
+  const { data: appointments } = useQuery({
+    queryKey: ["h-appointments"],
+    queryFn: () => getHospitalAppointments(),
+  });
+
+  const activeCount = specialists?.filter((s) => s.is_active).length ?? 0;
+  const pendingCount = appointments?.filter((a) => a.status === "REQUESTED").length ?? 0;
 
   return (
     <div className="grid gap-4 sm:grid-cols-3">
-      <Stat icon={<Users />} label="Active specialists" value={data?.specialists ?? "—"} />
-      <Stat icon={<Activity />} label="Available today" value={data?.availableToday ?? "—"} tone="green" />
-      <Stat icon={<Calendar />} label="Pending appointments" value={data?.pending ?? "—"} tone="amber" />
+      <Stat icon={<Users />} label="Active specialists" value={activeCount} />
+      <Stat icon={<Activity />} label="Total specialists" value={specialists?.length ?? 0} tone="green" />
+      <Stat icon={<Calendar />} label="Pending appointments" value={pendingCount} tone="amber" />
     </div>
   );
 }
