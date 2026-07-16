@@ -2,9 +2,11 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useState } from "react";
 import { z } from "zod";
 import { loginUser, registerPatient } from "@/lib/api/auth";
+import { normalizeTzPhone } from "@/lib/phone";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
@@ -24,9 +26,12 @@ function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   useEffect(() => {
-    if (!loading && user) {
-      navigate({ to: redirect || "/", replace: true });
+    if (loading || !user) return;
+    if (!user.phone_verified) {
+      navigate({ to: "/verify-phone", replace: true });
+      return;
     }
+    navigate({ to: redirect || "/", replace: true });
   }, [user, loading, navigate, redirect]);
 
   return (
@@ -38,11 +43,15 @@ function AuthPage() {
             <button
               onClick={() => setMode("signin")}
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${mode === "signin" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
-            >Sign in</button>
+            >
+              Sign in
+            </button>
             <button
               onClick={() => setMode("signup")}
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${mode === "signup" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
-            >Create account</button>
+            >
+              Create account
+            </button>
           </div>
           {mode === "signin" ? <SignInForm redirect={redirect} /> : <SignUpForm />}
         </div>
@@ -52,7 +61,7 @@ function AuthPage() {
 }
 
 function SignInForm({ redirect }: { redirect?: string }) {
-  const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
@@ -60,12 +69,18 @@ function SignInForm({ redirect }: { redirect?: string }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalized = normalizeTzPhone(phone);
+    if (!normalized) {
+      toast.error("Enter a Tanzania number (07XX XXX XXX)");
+      return;
+    }
+
     setBusy(true);
     try {
-      await loginUser({ username, password });
+      const { user } = await loginUser({ phone_number: normalized, password });
       await refresh();
       toast.success("Welcome back");
-      navigate({ to: redirect || "/", replace: true });
+      navigate({ to: user.phone_verified ? redirect || "/" : "/verify-phone", replace: true });
     } catch (err: any) {
       toast.error(err.message || "Login failed");
     } finally {
@@ -77,12 +92,24 @@ function SignInForm({ redirect }: { redirect?: string }) {
     <form onSubmit={submit} className="space-y-4">
       <h1 className="text-2xl font-bold">Welcome back</h1>
       <div>
-        <Label htmlFor="username">Username</Label>
-        <Input id="username" required value={username} onChange={(e) => setUsername(e.target.value)} />
+        <Label htmlFor="phone">Phone number</Label>
+        <Input
+          id="phone"
+          type="tel"
+          required
+          placeholder="0712 345 678"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>
-        <Input id="pw" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordInput
+          id="pw"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
       </div>
       <Button type="submit" className="w-full" size="lg" disabled={busy}>
         {busy ? "Signing in..." : "Sign in"}
@@ -92,8 +119,6 @@ function SignInForm({ redirect }: { redirect?: string }) {
 }
 
 function SignUpForm() {
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -102,18 +127,22 @@ function SignUpForm() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    const normalized = normalizeTzPhone(phone);
+    if (!normalized) {
+      toast.error("Enter a Tanzania number (07XX XXX XXX)");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
     setBusy(true);
     try {
-      await registerPatient({
-        username,
-        email: email || undefined,
-        password,
-        phone_number: phone || undefined,
-      });
+      await registerPatient({ phone_number: normalized, password });
       await refresh();
-      toast.success("Account created");
-      navigate({ to: "/", replace: true });
+      toast.success("Account created — verification code sent by SMS");
+      navigate({ to: "/verify-phone", replace: true });
     } catch (err: any) {
       toast.error(err.message || "Registration failed");
     } finally {
@@ -124,22 +153,31 @@ function SignUpForm() {
   return (
     <form onSubmit={submit} className="space-y-4">
       <h1 className="text-2xl font-bold">Create patient account</h1>
-      <p className="text-sm text-muted-foreground -mt-2">Register a hospital? <a href="/register-hospital" className="text-primary font-medium">Start here</a></p>
+      <p className="text-sm text-muted-foreground -mt-2">
+        Register a hospital?{" "}
+        <a href="/register-hospital" className="text-primary font-medium">
+          Start here
+        </a>
+      </p>
       <div>
-        <Label htmlFor="un">Username</Label>
-        <Input id="un" required value={username} onChange={(e) => setUsername(e.target.value)} />
-      </div>
-      <div>
-        <Label htmlFor="em">Email (optional)</Label>
-        <Input id="em" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </div>
-      <div>
-        <Label htmlFor="ph">Phone (optional)</Label>
-        <Input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+255712345678" />
+        <Label htmlFor="ph">Phone number</Label>
+        <Input
+          id="ph"
+          type="tel"
+          required
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="0712 345 678"
+        />
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>
-        <Input id="pw" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordInput
+          id="pw"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
       </div>
       <Button type="submit" className="w-full" size="lg" disabled={busy}>
         {busy ? "Creating..." : "Create account"}

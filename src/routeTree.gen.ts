@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyPhoneRouteImport } from './routes/verify-phone'
 import { Route as RegisterHospitalRouteImport } from './routes/register-hospital'
 import { Route as PendingRouteImport } from './routes/pending'
 import { Route as HospitalRouteImport } from './routes/hospital'
@@ -22,6 +23,11 @@ import { Route as HospitalSpecialistsRouteImport } from './routes/hospital.speci
 import { Route as HospitalAvailabilityRouteImport } from './routes/hospital.availability'
 import { Route as HospitalAppointmentsRouteImport } from './routes/hospital.appointments'
 
+const VerifyPhoneRoute = VerifyPhoneRouteImport.update({
+  id: '/verify-phone',
+  path: '/verify-phone',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterHospitalRoute = RegisterHospitalRouteImport.update({
   id: '/register-hospital',
   path: '/register-hospital',
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/hospital': typeof HospitalRouteWithChildren
   '/pending': typeof PendingRoute
   '/register-hospital': typeof RegisterHospitalRoute
+  '/verify-phone': typeof VerifyPhoneRoute
   '/hospital/appointments': typeof HospitalAppointmentsRoute
   '/hospital/availability': typeof HospitalAvailabilityRoute
   '/hospital/specialists': typeof HospitalSpecialistsRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/pending': typeof PendingRoute
   '/register-hospital': typeof RegisterHospitalRoute
+  '/verify-phone': typeof VerifyPhoneRoute
   '/hospital/appointments': typeof HospitalAppointmentsRoute
   '/hospital/availability': typeof HospitalAvailabilityRoute
   '/hospital/specialists': typeof HospitalSpecialistsRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/hospital': typeof HospitalRouteWithChildren
   '/pending': typeof PendingRoute
   '/register-hospital': typeof RegisterHospitalRoute
+  '/verify-phone': typeof VerifyPhoneRoute
   '/hospital/appointments': typeof HospitalAppointmentsRoute
   '/hospital/availability': typeof HospitalAvailabilityRoute
   '/hospital/specialists': typeof HospitalSpecialistsRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/hospital'
     | '/pending'
     | '/register-hospital'
+    | '/verify-phone'
     | '/hospital/appointments'
     | '/hospital/availability'
     | '/hospital/specialists'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/pending'
     | '/register-hospital'
+    | '/verify-phone'
     | '/hospital/appointments'
     | '/hospital/availability'
     | '/hospital/specialists'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/hospital'
     | '/pending'
     | '/register-hospital'
+    | '/verify-phone'
     | '/hospital/appointments'
     | '/hospital/availability'
     | '/hospital/specialists'
@@ -177,11 +189,19 @@ export interface RootRouteChildren {
   HospitalRoute: typeof HospitalRouteWithChildren
   PendingRoute: typeof PendingRoute
   RegisterHospitalRoute: typeof RegisterHospitalRoute
+  VerifyPhoneRoute: typeof VerifyPhoneRoute
   SpecialistIdRoute: typeof SpecialistIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-phone': {
+      id: '/verify-phone'
+      path: '/verify-phone'
+      fullPath: '/verify-phone'
+      preLoaderRoute: typeof VerifyPhoneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register-hospital': {
       id: '/register-hospital'
       path: '/register-hospital'
@@ -295,6 +315,7 @@ const rootRouteChildren: RootRouteChildren = {
   HospitalRoute: HospitalRouteWithChildren,
   PendingRoute: PendingRoute,
   RegisterHospitalRoute: RegisterHospitalRoute,
+  VerifyPhoneRoute: VerifyPhoneRoute,
   SpecialistIdRoute: SpecialistIdRoute,
 }
 export const routeTree = rootRouteImport

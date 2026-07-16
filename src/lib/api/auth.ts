@@ -6,6 +6,7 @@ export interface ApiUser {
   email: string;
   role: "PATIENT" | "HOSPITAL_ADMIN" | "SUPER_ADMIN";
   phone_number: string;
+  phone_verified: boolean;
   hospital: number | null;
   date_joined: string;
 }
@@ -17,15 +18,15 @@ export interface AuthTokens {
 }
 
 export interface LoginPayload {
-  username: string;
+  phone_number: string;
   password: string;
 }
 
 export interface RegisterPatientPayload {
-  username: string;
-  email?: string;
+  phone_number: string;
   password: string;
-  phone_number?: string;
+  username?: string;
+  email?: string;
 }
 
 export async function loginUser(payload: LoginPayload): Promise<AuthTokens> {
@@ -42,6 +43,14 @@ export async function registerPatient(payload: RegisterPatientPayload): Promise<
 
 export async function getMe(): Promise<ApiUser> {
   return apiGet<ApiUser>("/api/auth/me/");
+}
+
+export async function verifyOtp(code: string): Promise<ApiUser> {
+  return apiPost<ApiUser>("/api/auth/verify-otp/", { code });
+}
+
+export async function resendOtp(): Promise<void> {
+  await apiPost<void>("/api/auth/resend-otp/");
 }
 
 export function logout() {

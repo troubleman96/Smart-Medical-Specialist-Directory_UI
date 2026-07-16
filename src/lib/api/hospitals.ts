@@ -22,9 +22,10 @@ export interface RegisterHospitalPayload {
   address?: string;
   phone?: string;
   email?: string;
-  admin_username: string;
-  admin_email: string;
+  admin_phone_number: string;
   admin_password: string;
+  admin_username?: string;
+  admin_email?: string;
 }
 
 export async function registerHospital(payload: RegisterHospitalPayload): Promise<Hospital> {
@@ -39,7 +40,10 @@ export async function updateMyHospital(data: Partial<Hospital>): Promise<Hospita
   return apiPatch<Hospital>("/api/hospitals/me/", data);
 }
 
-export async function verifyHospital(id: number, status: "VERIFIED" | "SUSPENDED"): Promise<Hospital> {
+export async function verifyHospital(
+  id: number,
+  status: "VERIFIED" | "SUSPENDED",
+): Promise<Hospital> {
   return apiPatch<Hospital>(`/api/hospitals/${id}/verify/`, { status });
 }
 
