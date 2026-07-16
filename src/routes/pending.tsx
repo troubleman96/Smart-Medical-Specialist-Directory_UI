@@ -3,24 +3,21 @@ import { AppHeader } from "@/components/AppHeader";
 import { CheckCircle2, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getMyHospital } from "@/lib/api/hospitals";
 
 export const Route = createFileRoute("/pending")({
   component: Pending,
 });
 
 function Pending() {
-  const { user, profile } = useAuth();
+  const { hospitalId } = useAuth();
   const { data: hospital } = useQuery({
-    enabled: !!profile?.hospital_id,
-    queryKey: ["hospital", profile?.hospital_id],
-    queryFn: async () => {
-      const { data } = await supabase.from("hospitals").select("*").eq("id", profile!.hospital_id!).maybeSingle();
-      return data;
-    },
+    enabled: !!hospitalId,
+    queryKey: ["hospital"],
+    queryFn: () => getMyHospital(),
   });
 
-  const verified = hospital?.status === "verified";
+  const verified = hospital?.status === "VERIFIED";
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,7 +48,6 @@ function Pending() {
             <Link to="/" className="text-sm text-primary font-medium">Back to home</Link>
           )}
         </div>
-        {!user && <p className="mt-4 text-sm text-muted-foreground">Please sign in to see your registration status.</p>}
       </div>
     </div>
   );

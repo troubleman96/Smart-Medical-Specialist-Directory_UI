@@ -3,14 +3,14 @@ import { useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { AppHeader } from "@/components/AppHeader";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getMyHospital } from "@/lib/api/hospitals";
 
 export const Route = createFileRoute("/hospital")({
   component: HospitalLayout,
 });
 
 function HospitalLayout() {
-  const { user, roles, profile, loading } = useAuth();
+  const { user, roles, hospitalId, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -21,17 +21,14 @@ function HospitalLayout() {
   }, [loading, user, roles, navigate, location.pathname]);
 
   const { data: hospital } = useQuery({
-    enabled: !!profile?.hospital_id,
-    queryKey: ["hospital", profile?.hospital_id],
-    queryFn: async () => {
-      const { data } = await supabase.from("hospitals").select("*").eq("id", profile!.hospital_id!).maybeSingle();
-      return data;
-    },
+    enabled: !!hospitalId,
+    queryKey: ["hospital"],
+    queryFn: () => getMyHospital(),
   });
 
   if (loading || !user) return <div className="min-h-screen bg-background"><AppHeader /></div>;
 
-  if (hospital && hospital.status !== "verified") {
+  if (hospital && hospital.status !== "VERIFIED") {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
