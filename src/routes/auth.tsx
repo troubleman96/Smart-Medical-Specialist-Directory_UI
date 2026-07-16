@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { loginUser, registerPatient } from "@/lib/api/auth";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { useEffect } from "react";
-import { normalizeTzPhone } from "@/lib/phone";
 
 const searchSchema = z.object({ redirect: z.string().optional() });
 
@@ -53,27 +52,33 @@ function AuthPage() {
 }
 
 function SignInForm({ redirect }: { redirect?: string }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const { refresh } = useAuth();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Welcome back");
-    navigate({ to: redirect || "/", replace: true });
+    try {
+      await loginUser({ username, password });
+      await refresh();
+      toast.success("Welcome back");
+      navigate({ to: redirect || "/", replace: true });
+    } catch (err: any) {
+      toast.error(err.message || "Login failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <form onSubmit={submit} className="space-y-4">
       <h1 className="text-2xl font-bold">Welcome back</h1>
       <div>
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Label htmlFor="username">Username</Label>
+        <Input id="username" required value={username} onChange={(e) => setUsername(e.target.value)} />
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>
@@ -87,28 +92,33 @@ function SignInForm({ redirect }: { redirect?: string }) {
 }
 
 function SignUpForm() {
-  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const { refresh } = useAuth();
+  const navigate = useNavigate();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const normalized = normalizeTzPhone(phone);
-    if (!normalized) { toast.error("Enter a Tanzania number (07XX XXX XXX)"); return; }
     if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
-      email, password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: { full_name: fullName, phone: normalized, role: "patient" },
-      },
-    });
-    setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Account created — you can sign in now");
+    try {
+      await registerPatient({
+        username,
+        email: email || undefined,
+        password,
+        phone_number: phone || undefined,
+      });
+      await refresh();
+      toast.success("Account created");
+      navigate({ to: "/", replace: true });
+    } catch (err: any) {
+      toast.error(err.message || "Registration failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -116,16 +126,16 @@ function SignUpForm() {
       <h1 className="text-2xl font-bold">Create patient account</h1>
       <p className="text-sm text-muted-foreground -mt-2">Register a hospital? <a href="/register-hospital" className="text-primary font-medium">Start here</a></p>
       <div>
-        <Label htmlFor="fn">Full name</Label>
-        <Input id="fn" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <Label htmlFor="un">Username</Label>
+        <Input id="un" required value={username} onChange={(e) => setUsername(e.target.value)} />
       </div>
       <div>
-        <Label htmlFor="em">Email</Label>
-        <Input id="em" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Label htmlFor="em">Email (optional)</Label>
+        <Input id="em" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div>
-        <Label htmlFor="ph">Phone (07XX XXX XXX)</Label>
-        <Input id="ph" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" />
+        <Label htmlFor="ph">Phone (optional)</Label>
+        <Input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+255712345678" />
       </div>
       <div>
         <Label htmlFor="pw">Password</Label>

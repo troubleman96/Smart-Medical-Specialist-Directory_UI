@@ -1,60 +1,69 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { Session, User } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { getMe, logout, isLoggedIn, type ApiUser } from "@/lib/api/auth";
 
 export type AppRole = "patient" | "hospital_admin" | "super_admin";
 
-export interface Profile {
-  id: string;
-  full_name: string | null;
-  phone: string | null;
-  hospital_id: string | null;
-}
+const ROLE_MAP: Record<string, AppRole> = {
+  PATIENT: "patient",
+  HOSPITAL_ADMIN: "hospital_admin",
+  SUPER_ADMIN: "super_admin",
+};
 
 interface AuthState {
-  session: Session | null;
-  user: User | null;
-  profile: Profile | null;
+  user: ApiUser | null;
   roles: AppRole[];
+  hospitalId: number | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  signOut: () => void;
 }
 
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<ApiUser | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadUserData = async (uid: string | null) => {
-    if (!uid) { setProfile(null); setRoles([]); return; }
-    const [{ data: p }, { data: r }] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, phone, hospital_id").eq("id", uid).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", uid),
-    ]);
-    setProfile(p ?? null);
-    setRoles((r ?? []).map((x: { role: AppRole }) => x.role));
-  };
-
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-      setSession(s);
-      // defer supabase calls
-      setTimeout(() => { loadUserData(s?.user.id ?? null); }, 0);
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      loadUserData(data.session?.user.id ?? null).finally(() => setLoading(false));
-    });
-    return () => sub.subscription.unsubscribe();
+  const loadUser = useCallback(async () => {
+    if (!isLoggedIn()) {
+      setUser(null);
+      setRoles([]);
+      return;
+    }
+    try {
+      const me = await getMe();
+      setUser(me);
+      setRoles([ROLE_MAP[me.role] ?? "patient"]);
+    } catch {
+      setUser(null);
+      setRoles([]);
+      logout();
+    }
   }, []);
 
-  const refresh = async () => { await loadUserData(session?.user.id ?? null); };
+  useEffect(() => {
+    loadUser().finally(() => setLoading(false));
+  }, [loadUser]);
+
+  const refresh = async () => { await loadUser(); };
+
+  const signOut = () => {
+    logout();
+    setUser(null);
+    setRoles([]);
+    window.location.href = "/";
+  };
 
   return (
-    <Ctx.Provider value={{ session, user: session?.user ?? null, profile, roles, loading, refresh }}>
+    <Ctx.Provider value={{
+      user,
+      roles,
+      hospitalId: user?.hospital ?? null,
+      loading,
+      refresh,
+      signOut,
+    }}>
       {children}
     </Ctx.Provider>
   );

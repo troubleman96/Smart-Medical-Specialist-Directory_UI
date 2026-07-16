@@ -1,18 +1,15 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Activity, LogOut } from "lucide-react";
 
 export function AppHeader() {
-  const { user, roles, profile } = useAuth();
-  const navigate = useNavigate();
+  const { user, roles, signOut } = useAuth();
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = () => {
+    signOut();
     toast.success("Signed out");
-    navigate({ to: "/", replace: true });
   };
 
   const dashboardHref = roles.includes("super_admin")
@@ -37,9 +34,9 @@ export function AppHeader() {
                 Dashboard
               </Link>
               <span className="hidden md:inline text-sm text-muted-foreground">
-                {profile?.full_name || user.email}
+                {user.username}
               </span>
-              <Button variant="ghost" size="sm" onClick={signOut}>
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Sign out</span>
               </Button>
