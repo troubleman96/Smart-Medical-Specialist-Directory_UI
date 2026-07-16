@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterHospitalRouteImport } from './routes/register-hospital'
 import { Route as PendingRouteImport } from './routes/pending'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SpecialistIdRouteImport } from './routes/specialist.$id'
 
 const RegisterHospitalRoute = RegisterHospitalRouteImport.update({
   id: '/register-hospital',
@@ -29,44 +31,81 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppointmentsRoute = AppointmentsRouteImport.update({
+  id: '/appointments',
+  path: '/appointments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SpecialistIdRoute = SpecialistIdRouteImport.update({
+  id: '/specialist/$id',
+  path: '/specialist/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/appointments': typeof AppointmentsRoute
   '/auth': typeof AuthRoute
   '/pending': typeof PendingRoute
   '/register-hospital': typeof RegisterHospitalRoute
+  '/specialist/$id': typeof SpecialistIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/appointments': typeof AppointmentsRoute
   '/auth': typeof AuthRoute
   '/pending': typeof PendingRoute
   '/register-hospital': typeof RegisterHospitalRoute
+  '/specialist/$id': typeof SpecialistIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/appointments': typeof AppointmentsRoute
   '/auth': typeof AuthRoute
   '/pending': typeof PendingRoute
   '/register-hospital': typeof RegisterHospitalRoute
+  '/specialist/$id': typeof SpecialistIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/pending' | '/register-hospital'
+  fullPaths:
+    | '/'
+    | '/appointments'
+    | '/auth'
+    | '/pending'
+    | '/register-hospital'
+    | '/specialist/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/pending' | '/register-hospital'
-  id: '__root__' | '/' | '/auth' | '/pending' | '/register-hospital'
+  to:
+    | '/'
+    | '/appointments'
+    | '/auth'
+    | '/pending'
+    | '/register-hospital'
+    | '/specialist/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/appointments'
+    | '/auth'
+    | '/pending'
+    | '/register-hospital'
+    | '/specialist/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppointmentsRoute: typeof AppointmentsRoute
   AuthRoute: typeof AuthRoute
   PendingRoute: typeof PendingRoute
   RegisterHospitalRoute: typeof RegisterHospitalRoute
+  SpecialistIdRoute: typeof SpecialistIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/appointments': {
+      id: '/appointments'
+      path: '/appointments'
+      fullPath: '/appointments'
+      preLoaderRoute: typeof AppointmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -99,14 +145,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/specialist/$id': {
+      id: '/specialist/$id'
+      path: '/specialist/$id'
+      fullPath: '/specialist/$id'
+      preLoaderRoute: typeof SpecialistIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppointmentsRoute: AppointmentsRoute,
   AuthRoute: AuthRoute,
   PendingRoute: PendingRoute,
   RegisterHospitalRoute: RegisterHospitalRoute,
+  SpecialistIdRoute: SpecialistIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
