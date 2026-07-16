@@ -34,7 +34,7 @@ export function AppHeader() {
                 Dashboard
               </Link>
               <span className="hidden md:inline text-sm text-muted-foreground">
-                {user.username}
+                {user.full_name || user.username}
               </span>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />

@@ -119,14 +119,20 @@ function SignInForm({ redirect }: { redirect?: string }) {
 }
 
 function SignUpForm() {
+  const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const { refresh } = useAuth();
   const navigate = useNavigate();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim()) {
+      toast.error("Enter your full name");
+      return;
+    }
     const normalized = normalizeTzPhone(phone);
     if (!normalized) {
       toast.error("Enter a Tanzania number (07XX XXX XXX)");
@@ -136,10 +142,14 @@ function SignUpForm() {
       toast.error("Password must be at least 8 characters");
       return;
     }
+    if (password !== confirmPassword) {
+      toast.error("Passwords don't match");
+      return;
+    }
 
     setBusy(true);
     try {
-      await registerPatient({ phone_number: normalized, password });
+      await registerPatient({ full_name: fullName.trim(), phone_number: normalized, password });
       await refresh();
       toast.success("Account created — verification code sent by SMS");
       navigate({ to: "/verify-phone", replace: true });
@@ -160,6 +170,16 @@ function SignUpForm() {
         </a>
       </p>
       <div>
+        <Label htmlFor="fn">Full name</Label>
+        <Input
+          id="fn"
+          required
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Jane Mwangi"
+        />
+      </div>
+      <div>
         <Label htmlFor="ph">Phone number</Label>
         <Input
           id="ph"
@@ -177,6 +197,15 @@ function SignUpForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label htmlFor="cpw">Confirm password</Label>
+        <PasswordInput
+          id="cpw"
+          required
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
         />
       </div>
       <Button type="submit" className="w-full" size="lg" disabled={busy}>

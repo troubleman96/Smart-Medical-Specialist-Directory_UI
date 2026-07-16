@@ -3,6 +3,7 @@ import { apiPost, apiGet, setTokens, clearTokens } from "../api-client";
 export interface ApiUser {
   id: number;
   username: string;
+  full_name: string;
   email: string;
   role: "PATIENT" | "HOSPITAL_ADMIN" | "SUPER_ADMIN";
   phone_number: string;
@@ -23,6 +24,7 @@ export interface LoginPayload {
 }
 
 export interface RegisterPatientPayload {
+  full_name: string;
   phone_number: string;
   password: string;
   username?: string;
