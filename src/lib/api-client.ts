@@ -20,6 +20,24 @@ interface TokenPair {
   refresh: string;
 }
 
+// The envelope's top-level `message` is a generic label ("Something went
+// wrong.", "Validation failed.") — the actually useful text lives in
+// `errors`, either {detail: "..."} for service-layer failures or
+// {field: ["msg", ...]} for serializer validation. Prefer that.
+function extractErrorMessage(body: ApiEnvelope<unknown>): string {
+  const errors = body.errors as Record<string, unknown> | null;
+  if (errors && typeof errors === "object") {
+    if (typeof errors.detail === "string") return errors.detail;
+    for (const key of Object.keys(errors)) {
+      const val = errors[key];
+      if (Array.isArray(val) && typeof val[0] === "string") {
+        return key === "detail" ? val[0] : `${key}: ${val[0]}`;
+      }
+    }
+  }
+  return body.message || "Request failed";
+}
+
 const STORAGE_KEY = "kindamba_tokens";
 
 function getTokens(): TokenPair | null {
@@ -121,8 +139,7 @@ export async function apiFetch<T>(
   const body: ApiEnvelope<T> = await res.json();
 
   if (!body.success) {
-    const msg = body.message || "Request failed";
-    const err = new Error(msg) as Error & { errors: Record<string, string[]> | null };
+    const err = new Error(extractErrorMessage(body)) as Error & { errors: Record<string, string[]> | null };
     err.errors = body.errors;
     throw err;
   }
@@ -177,8 +194,7 @@ export async function apiGetPaginated<T>(path: string, params?: Record<string, s
   const body: ApiEnvelope<T[]> = await res.json();
 
   if (!body.success) {
-    const err = new Error(body.message || "Request failed");
-    throw err;
+    throw new Error(extractErrorMessage(body));
   }
 
   return { items: body.data, meta: body.meta };
