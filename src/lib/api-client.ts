@@ -61,10 +61,12 @@ async function refreshAccessToken(): Promise<boolean> {
       body: JSON.stringify({ refresh }),
     });
     if (!res.ok) return false;
-    const body: ApiEnvelope<{ access: string }> = await res.json();
-    if (!body.success || !body.data?.access) return false;
+    // Unlike every other endpoint, /api/auth/refresh/ is DRF-simplejwt's stock
+    // TokenRefreshView — it returns a raw { access, refresh } body, not our envelope.
+    const body: { access?: string } = await res.json();
+    if (!body.access) return false;
     const existing = getTokens();
-    if (existing) setTokens({ access: body.data.access, refresh: existing.refresh });
+    if (existing) setTokens({ access: body.access, refresh: existing.refresh });
     return true;
   } catch {
     return false;
