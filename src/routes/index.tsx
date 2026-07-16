@@ -1,41 +1,59 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { searchNearby, type NearbyResult } from "@/lib/api/search";
 import { AppHeader } from "@/components/AppHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { MapPin, Search, Stethoscope, Building2, ArrowRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
-// Central Dar es Salaam
 const DAR_DEFAULT = { lat: -6.7924, lng: 39.2083 };
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
-type NearbyRow = {
-  specialist_id: string;
+interface FlatRow {
+  specialist_id: number;
   specialist_name: string;
   specialization: string;
-  photo_url: string | null;
-  hospital_id: string;
+  hospital_id: number;
   hospital_name: string;
-  hospital_address: string | null;
+  hospital_address: string;
   hospital_lat: number;
   hospital_lng: number;
   distance_km: number;
   availability_status: "available" | "busy" | "off";
-};
+}
 
 const SPECIALIZATIONS = [
   "", "Cardiology", "Dermatology", "Pediatrics", "Gynecology",
   "Orthopedics", "Neurology", "Psychiatry", "Dentistry", "General Practice",
   "Ophthalmology", "ENT", "Urology", "Oncology",
 ];
+
+function flattenResults(data: NearbyResult[]): FlatRow[] {
+  const rows: FlatRow[] = [];
+  for (const h of data) {
+    for (const s of h.specialists) {
+      rows.push({
+        specialist_id: s.id,
+        specialist_name: s.full_name,
+        specialization: s.specialization,
+        hospital_id: h.hospital_id,
+        hospital_name: h.hospital_name,
+        hospital_address: h.address,
+        hospital_lat: h.latitude,
+        hospital_lng: h.longitude,
+        distance_km: h.distance_km,
+        availability_status: (s.availability?.toLowerCase() ?? "off") as "available" | "busy" | "off",
+      });
+    }
+  }
+  return rows;
+}
 
 function Home() {
   const [coords, setCoords] = useState(DAR_DEFAULT);
@@ -61,15 +79,13 @@ function Home() {
   const query = useQuery({
     queryKey: ["nearby", coords.lat, coords.lng, specialization, radius],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("nearby_specialists", {
+      const data = await searchNearby({
         lat: coords.lat,
         lng: coords.lng,
-        specialization_filter: specialization || undefined,
-        radius_km: radius,
-        date_filter: new Date().toISOString().slice(0, 10),
+        specialization: specialization || undefined,
+        radius,
       });
-      if (error) throw error;
-      return (data as NearbyRow[]) ?? [];
+      return flattenResults(data);
     },
     enabled: searched,
   });
@@ -161,11 +177,11 @@ function Home() {
   );
 }
 
-function SpecialistCard({ r }: { r: NearbyRow }) {
+function SpecialistCard({ r }: { r: FlatRow }) {
   return (
     <Link
       to="/specialist/$id"
-      params={{ id: r.specialist_id }}
+      params={{ id: String(r.specialist_id) }}
       className="group block rounded-2xl border border-border bg-card p-5 hover:border-primary/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-3">
@@ -239,6 +255,3 @@ function FeatureCard({ icon, title, text }: { icon: React.ReactNode; title: stri
     </div>
   );
 }
-
-// use imported Input/Skeleton to avoid unused-import lint
-void Input;

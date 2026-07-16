@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getPublicSpecialist } from "@/lib/api/specialists";
+import { listAvailability } from "@/lib/api/availability";
+import { createAppointment } from "@/lib/api/appointments";
 import { AppHeader } from "@/components/AppHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -24,69 +26,61 @@ function SpecialistDetail() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [time, setTime] = useState("10:00");
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["specialist", id],
-    queryFn: async () => {
-      const { data: s, error } = await supabase
-        .from("specialists")
-        .select("id, full_name, specialization, license_no, photo_url, hospital:hospitals(id, name, address, phone, latitude, longitude)")
-        .eq("id", id)
-        .single();
-      if (error) throw error;
-      const start = isoDate(new Date());
-      const end = new Date(); end.setDate(end.getDate() + 7);
-      const { data: av } = await supabase
-        .from("availability")
-        .select("date, status")
-        .eq("specialist_id", id)
-        .gte("date", start)
-        .lte("date", isoDate(end));
-      return { specialist: s, availability: av ?? [] };
-    },
+  const specialistId = Number(id);
+
+  const { data: specialist, isLoading, isError } = useQuery({
+    queryKey: ["specialist", specialistId],
+    queryFn: () => getPublicSpecialist(specialistId),
+  });
+
+  const start = isoDate(new Date());
+  const end = new Date(); end.setDate(end.getDate() + 7);
+  const endStr = isoDate(end);
+
+  const { data: availability } = useQuery({
+    queryKey: ["availability", specialistId, start, endStr],
+    queryFn: () => listAvailability({ specialist_id: specialistId, date_from: start, date_to: endStr }),
+    enabled: !!user,
   });
 
   const book = useMutation({
     mutationFn: async () => {
-      if (!user || !selectedDate) throw new Error("Sign in first");
+      if (!user || !selectedDate || !specialist) throw new Error("Sign in first");
       const scheduled = new Date(`${selectedDate}T${time}:00`).toISOString();
-      const { data: appt, error } = await supabase
-        .from("appointments")
-        .insert({
-          patient_id: user.id,
-          specialist_id: id,
-          hospital_id: data!.specialist.hospital.id,
-          scheduled_at: scheduled,
-        })
-        .select("id, reference")
-        .single();
-      if (error) throw error;
-      return appt;
+      return createAppointment({
+        specialist_id: specialistId,
+        hospital_id: specialist.hospital.id,
+        scheduled_at: scheduled,
+      });
     },
     onSuccess: (appt) => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
-      toast.success(`Booked! Reference ${appt.reference}`);
+      toast.success(`Booked! Reference ${appt.reference_number}`);
       navigate({ to: "/appointments" });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 
   if (isLoading) return <Loading />;
-  if (isError || !data) return <NotFoundBlock />;
-  const { specialist, availability } = data;
-  const availByDate = new Map(availability.map((a) => [a.date, a.status]));
+  if (isError || !specialist) return <NotFoundBlock />;
+
+  const availByDate = new Map((availability ?? []).map((a) => [a.date, a.status]));
 
   const next7: Array<{ date: string; label: string; sub: string; status: "available" | "busy" | "off" }> = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     const iso = isoDate(d);
+    const apiStatus = availByDate.get(iso);
     next7.push({
       date: iso,
       label: d.toLocaleDateString("en", { weekday: "short" }),
       sub: d.toLocaleDateString("en", { day: "numeric", month: "short" }),
-      status: (availByDate.get(iso) as "available" | "busy" | "off") ?? "off",
+      status: apiStatus ? (apiStatus.toLowerCase() as "available" | "busy" | "off") : "off",
     });
   }
+
+  const hosp = specialist.hospital as any;
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -108,16 +102,16 @@ function SpecialistDetail() {
                     <MapPin className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="font-semibold">{specialist.hospital.name}</div>
-                    {specialist.hospital.address && <div className="text-sm text-muted-foreground">{specialist.hospital.address}</div>}
-                    {specialist.hospital.phone && <div className="text-sm text-muted-foreground mt-1">{specialist.hospital.phone}</div>}
+                    <div className="font-semibold">{hosp.name}</div>
+                    {hosp.address && <div className="text-sm text-muted-foreground">{hosp.address}</div>}
+                    {hosp.phone && <div className="text-sm text-muted-foreground mt-1">{hosp.phone}</div>}
                   </div>
                 </div>
               </div>
             </div>
             <div className="mt-4 rounded-2xl border border-border bg-card overflow-hidden">
               <LocationPicker
-                value={{ lat: specialist.hospital.latitude, lng: specialist.hospital.longitude }}
+                value={{ lat: hosp.latitude, lng: hosp.longitude }}
                 interactive={false}
                 height={220}
               />
@@ -127,6 +121,11 @@ function SpecialistDetail() {
           <div className="rounded-2xl border border-border bg-card p-6 h-fit lg:sticky lg:top-20">
             <h2 className="text-xl font-semibold">Book appointment</h2>
             <p className="text-sm text-muted-foreground mt-1">Next 7 days</p>
+            {!user && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                <Link to="/auth" className="text-primary font-medium">Sign in</Link> to see availability and book.
+              </p>
+            )}
             <div className="mt-4 grid grid-cols-7 gap-1.5">
               {next7.map((d) => {
                 const disabled = d.status === "off";
@@ -134,7 +133,7 @@ function SpecialistDetail() {
                 return (
                   <button
                     key={d.date}
-                    disabled={disabled}
+                    disabled={disabled || !user}
                     onClick={() => setSelectedDate(d.date)}
                     className={`rounded-lg p-2 text-center border transition ${
                       selected
@@ -166,7 +165,7 @@ function SpecialistDetail() {
                   className="w-full h-11 rounded-lg border border-input bg-background px-3"
                 />
                 <div className="flex items-center gap-2 rounded-lg bg-muted/60 p-3 text-sm">
-                  <StatusBadge status={(availByDate.get(selectedDate) as "available" | "busy" | "off") ?? "off"} size="sm" />
+                  <StatusBadge status={(availByDate.get(selectedDate)?.toLowerCase() as "available" | "busy" | "off") ?? "off"} size="sm" />
                 </div>
               </div>
             )}
