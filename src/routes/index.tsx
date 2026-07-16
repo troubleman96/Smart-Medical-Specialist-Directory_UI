@@ -64,7 +64,7 @@ function Home() {
       const { data, error } = await supabase.rpc("nearby_specialists", {
         lat: coords.lat,
         lng: coords.lng,
-        specialization_filter: specialization || null,
+        specialization_filter: specialization || undefined,
         radius_km: radius,
         date_filter: new Date().toISOString().slice(0, 10),
       });
